@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DIII-D RMP Coils × Icosahedral Edge Tensor (v3)</title>
+<title>DIII-D RMP Coils × Icosahedral Edge Tensor (v4)</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Cormorant+Garamond:wght@600;700&display=swap">
 <style>
 :root{
@@ -55,12 +55,13 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--rmp-blue);outli
 @media (max-width:900px){.container{grid-template-columns:1fr}.sidebar{border-left:none;border-top:1px solid rgba(214,208,198,0.12)}}
 @media (prefers-reduced-motion:reduce){/* rotation speed set to ~0 in JS */}
 </style>
+<base target="_blank">
 </head>
 <body>
 <header>
   <div>
     <h1>DIII-D RMP × Icosahedral Edge</h1>
-    <div class="subtitle">Resonant Magnetic Perturbation overlay · ELM suppression testbed · v3 (math-corrected)</div>
+    <div class="subtitle">Resonant Magnetic Perturbation overlay · ELM suppression testbed · v4 (resonance-extended)</div>
   </div>
   <div class="badge">RMP OVERLAY</div>
 </header>
@@ -74,22 +75,22 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--rmp-blue);outli
     <div class="panel-section">
       <h3>RMP Coil Configuration</h3>
       <div class="control-group">
-        <label>Coil current I<sub>RMP</sub> (kA/turn)</label>
+        <label for="cur">Coil current I<sub>RMP</sub> (kA/turn)</label>
         <input type="range" id="cur" min="0" max="10" step="0.1" value="4">
         <div class="control-value" id="v-cur">4.0 kA</div>
       </div>
       <div class="control-group">
-        <label>Toroidal mode n (coil phasing)</label>
+        <label for="n">Toroidal mode n (coil phasing)</label>
         <input type="range" id="n" min="1" max="3" step="1" value="1">
         <div class="control-value" id="v-n">n = 1</div>
       </div>
       <div class="control-group">
-        <label>Pedestal safety factor q₉₅</label>
+        <label for="q95">Pedestal safety factor q₉₅</label>
         <input type="range" id="q95" min="3" max="6" step="0.01" value="4.5">
         <div class="control-value" id="v-q95">q₉₅ = 4.50</div>
       </div>
       <div class="control-group">
-        <label>Edge shape parameter κ (φ⁻¹ = icosahedral, 1.0 = cubic)</label>
+        <label for="kap">Edge shape parameter κ (φ⁻¹ = icosahedral, 1.0 = cubic)</label>
         <input type="range" id="kap" min="0.618" max="1" step="0.001" value="0.618">
         <div class="control-value" id="v-kap">0.618 (A₅)</div>
       </div>
@@ -103,12 +104,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--rmp-blue);outli
 
     <div class="panel-section">
       <h3>Render</h3>
-      <div class="toggle-row"><label>Icosahedron edges</label><input type="checkbox" id="tIco" checked></div>
-      <div class="toggle-row"><label>RMP coils</label><input type="checkbox" id="tCoil" checked></div>
-      <div class="toggle-row"><label>Field-line traces</label><input type="checkbox" id="tField" checked></div>
-      <div class="toggle-row"><label>Rational surfaces q = m/n</label><input type="checkbox" id="tRat" checked></div>
-      <div class="toggle-row"><label>Cube overlay</label><input type="checkbox" id="tCube"></div>
-      <div class="toggle-row"><label>Depth sort</label><input type="checkbox" id="tSort" checked></div>
+      <div class="toggle-row"><label for="tIco">Icosahedron edges</label><input type="checkbox" id="tIco" checked></div>
+      <div class="toggle-row"><label for="tCoil">RMP coils</label><input type="checkbox" id="tCoil" checked></div>
+      <div class="toggle-row"><label for="tField">Field-line traces</label><input type="checkbox" id="tField" checked></div>
+      <div class="toggle-row"><label for="tRat">Rational surfaces q = m/n</label><input type="checkbox" id="tRat" checked></div>
+      <div class="toggle-row"><label for="tCube">Cube overlay</label><input type="checkbox" id="tCube"></div>
+      <div class="toggle-row"><label for="tSort">Depth sort</label><input type="checkbox" id="tSort" checked></div>
     </div>
 
     <div class="panel-section">
@@ -204,10 +205,10 @@ function coils(amp,n,rowSep){
     return{pos:p,phase,cur:amp*(1+0.3*phase)};
   });
 }
-// rational surfaces: q = m/n for m=1..6 at given toroidal mode n (FIX: was m/(n+1))
+// rational surfaces: q = m/n for m=1..18 (FIX: m<=6 starved n=2,3 of pedestal resonances)
 function rationals(n){
   const out=[];
-  for(let m=1;m<=6;m++){const q=m/n;if(q<3||q>6)continue;
+  for(let m=1;m<=18;m++){const q=m/n;if(q<3||q>6)continue;
     const r=0.3+(q-3)/3*0.7, ring=[];
     for(let t=0;t<=TAU+1e-6;t+=0.1)ring.push([r*Math.cos(t),0,r*Math.sin(t)]);
     out.push({q,ring});}
@@ -246,16 +247,20 @@ function render(){
   const rfa=amp/n;                                // resonant component ∝ I/n
   const qPrime=2.5;
   const w=Math.sqrt(amp/(n*qPrime));              // w_norm = √(I/(n·q′)), Bφ folded into normalization
-  const qRat=[1,2,3,4,5,6].map(m=>({m,q:m/n})).filter(o=>o.q>=3&&o.q<=6);
-  const nearest=qRat.reduce((a,o)=>Math.abs(o.q-q95)<Math.abs(a.q-q95)?o:a,qRat[0]||{q:NaN,m:0});
-  const dWin=Math.abs(nearest.q-q95);
+  const qRat=[...Array(18)].map((_,i)=>({m:i+1,q:(i+1)/n})).filter(o=>o.q>=3&&o.q<=6);
+  const nearest=qRat.length?qRat.reduce((a,o)=>Math.abs(o.q-q95)<Math.abs(a.q-q95)?o:a,qRat[0]):{q:NaN,m:0};
+  const dWin=qRat.length?Math.abs(nearest.q-q95):NaN;
   const leak=Math.pow(Math.max(0,(k-PHI1)/(1-PHI1)),2);   // FIX: continuous in κ, zero exactly at φ⁻¹
   const set=(v,b,pct,txt)=>{$(v).textContent=txt;$(b).style.width=Math.min(100,pct)+'%';};
   set('mVac','bVac',vac*10,vac.toFixed(2)+' (arb.)');
   set('mRfa','bRfa',rfa*16,rfa.toFixed(2));
   set('mW','bW',w*40,w.toFixed(2)+' (norm)');
-  set('mWin','bWin',Math.max(0,100*(1-dWin/0.3)),
-      dWin<=0.1?('IN WINDOW — q₉₅ ≈ '+nearest.q.toFixed(3)+' = '+nearest.m+'/'+n):('off-window, Δq₉₅ = '+dWin.toFixed(3)));
+  if(qRat.length){
+    set('mWin','bWin',Math.max(0,100*(1-dWin/0.3)),
+        dWin<=0.1?('IN WINDOW — q₉₅ ≈ '+nearest.q.toFixed(3)+' = '+nearest.m+'/'+n):('off-window, Δq₉₅ = '+dWin.toFixed(3)));
+  }else{
+    set('mWin','bWin',0,'no rational surfaces in 3 ≤ q ≤ 6 for n = '+n);
+  }
   set('mLeak','bLeak',leak*100,leak.toFixed(3)+(leak<0.01?' — closed':''));
 
   // --- draw: rationals (behind), cube, ico, coils, field lines ---
@@ -272,8 +277,8 @@ function render(){
       ctx.beginPath();ctx.moveTo(a.sx,a.sy);ctx.lineTo(b.sx,b.sy);ctx.stroke();}
     for(const v of CV){const p=proj(v,cx,cy,s);ctx.fillStyle='rgba(255,74,110,0.35)';
       ctx.beginPath();ctx.arc(p.sx,p.sy,3,0,TAU);ctx.fill();}}
-  if(show.ico){const ed=E.map(([i,j])=>({a:proj(V[i],cx,cy,s),b:proj(V[j],cx,cy,s),
-      d:(proj(V[i],cx,cy,s).depth+proj(V[j],cx,cy,s).depth)/2}));
+  if(show.ico){const ed=E.map(([i,j])=>{const a=proj(V[i],cx,cy,s),b=proj(V[j],cx,cy,s);
+      return{a,b,d:(a.depth+b.depth)/2};});
     if(show.sort)ed.sort((x,y)=>x.d-y.d);
     for(const e of ed){const tt=(e.d+1.2)/2.4,al=0.15+0.5*Math.max(0,Math.min(1,tt));
       ctx.strokeStyle=`rgba(214,208,198,${al})`;ctx.lineWidth=0.5+e.a.w*0.8;
@@ -293,7 +298,7 @@ function render(){
 
   ctx.fillStyle='rgba(214,208,198,0.45)';ctx.font='11px "IBM Plex Mono"';
   ctx.fillText('κ='+k.toFixed(3)+(leak<0.01?' (closed A₅ edge)':' (leak '+(leak*100).toFixed(0)+'%)'),16,22);
-  ctx.fillText('I='+amp.toFixed(1)+' kA · n='+n+' · q₉₅='+q95.toFixed(2)+' · Δq₉₅='+dWin.toFixed(3),16,38);
+  ctx.fillText('I='+amp.toFixed(1)+' kA · n='+n+' · q₉₅='+q95.toFixed(2)+' · Δq₉₅='+(isNaN(dWin)?'—':dWin.toFixed(3)),16,38);
   if(!reduce)t++;
   requestAnimationFrame(render);
 }
